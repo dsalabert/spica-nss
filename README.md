@@ -8,16 +8,35 @@ long-baseline optical interferometry observing programs.
 
 ## Requirements
 
-- Python 3.8+
+- Python >= 3.10
+- Tkinter
+- Internet access to JMMC TAP services
+
+## Dependencies
+
 - Astropy
-- Astroplan
 - Astroquery
+- Astroplan
 - PyVO
-- Matplotlib
 - NumPy
 - SciPy
+- Matplotlib
+- a2p2
 
-## Usage
+### Install
+
+```bash
+git clone https://github.com/dsalabert/spica-nss.git
+cd spica-nss
+
+python -m venv .venv
+source .venv/bin/activate
+
+pip install -U pip
+pip install -r requirements.txt
+```
+
+### Run
 
 ```bash
 python nss.py
@@ -25,9 +44,7 @@ python nss.py
 
 ## Documentation
 
-All public methods are documented with Google-style (Napoleon) docstrings, readable
-directly in the source or via any docstring-aware tool (e.g. `help()`, Sphinx with
-`sphinx.ext.napoleon`, or an IDE hover).
+In nss_documentation.md, and in Docs/nss.html (created with pdoc). A description of the aims and the functionalities of the NSS can be found in the file DescriptionNSS.pdf.
 
 ### Class overview
 
