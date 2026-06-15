@@ -1,20 +1,23 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on
+"""Created on december 2023
 
 @author: dsalabert
 """
-# Developed in Python 3.8.12
-# Last modified december 2023
 
-# import DataCursorPlot
-import astropy.io.votable
 import json
 import platform
 import tempfile
 import warnings
 
+from datetime import date, datetime
+from functools import reduce
+from idlelib.tooltip import Hovertip
+from pathlib import Path
+from tkinter import *
+from tkinter import messagebox, simpledialog, ttk
+
+import astropy.io.votable
 import matplotlib.artist as artists
 import matplotlib.pyplot as plt
 import numpy as np
@@ -27,27 +30,21 @@ from a2p2.jmmc import Catalog
 from a2p2.jmmc.models import (
     _model,
 )  # used to convert catalog's models to aspro's XML format
+
 from astroplan import FixedTarget, Observer
 from astropy import units as u
 from astropy.coordinates import SkyCoord
 from astropy.io.votable.tree import Param
 from astropy.samp import SAMPIntegratedClient
-from astropy.table import MaskedColumn
-from astropy.table import vstack, Table, join, join_skycoord
+from astropy.table import MaskedColumn, Table, join, join_skycoord, vstack
 from astropy.time import Time
 from astroquery.simbad import Simbad
 from astroquery.vizier import Vizier
-from datetime import date, datetime
-from functools import reduce
-from idlelib.tooltip import Hovertip
+
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from matplotlib.figure import Figure
 from matplotlib.offsetbox import AnchoredOffsetbox, TextArea, VPacker
-from pathlib import Path
 from scipy.special import jv
-from tkinter import *
-from tkinter import ttk
-from tkinter import messagebox, simpledialog
 
 if platform.system() == "Darwin":
     from tkmacosx import Button
@@ -57,33 +54,40 @@ warnings.filterwarnings("ignore", category=RuntimeWarning)
 warnings.filterwarnings("ignore", message=".*partition.*mask.*")
 plt.ioff()
 
-# from functools import partial
-# import datetime
-# import time
-# from astropy.io import fits
-# from astroquery.vizier import Vizier
-# from astropy.coordinates import Angle
-# from scipy.special import jv
-# from astropy.coordinates import EarthLocation
-# from astropy.table import Table, vstack
-# from astroplan import AltitudeConstraint, AirmassConstraint, AtNightConstraint
-# from astroplan import is_observable, is_always_observable, months_observable
-# from astroplan import observability_table
-# from matplotlib.figure import Figure
-# from itertools import compress
-# from PIL import ImageTk, Image
-
 
 class spica_NSS:
+    """
+    SPICA-NSS graphical observing preparation tool.
+
+    The application provides interactive selection of SPICA
+    science targets, calibrator identification, observability
+    analysis for CHARA, and interoperability with JMMC Aspro2
+    through SAMP and VOtable exchanges.
+
+    Main Capabilities:
+        * Query SPICA targets through TAP/ADQL
+        * Filter targets by work package, observing mode and priority
+        * Search primary and secondary calibrators
+        * Visualize sky distributions and observing statistics
+        * Export observing lists to Aspro2
+    """
 
     def __init__(self):
         """
+        Initialize the SPICA-NSS GUI application.
 
+        Sets up the main Tkinter window, creates all interface frames
+        (date selector, action buttons, work-package and instrumental-mode
+        filters, priority selectors, science-object filter entries, primary
+        and secondary calibrator parameter entries, and the matplotlib canvas),
+        configures layout via ``grid``, and starts the Tkinter event loop.
 
-        Returns
-        -------
-        None.
+        Class-level default values for declination and magnitude ranges as
+        well as calibrator search parameters are used to pre-populate all
+        entry widgets.
 
+        Returns:
+            None
         """
 
         print(f"*** Welcome to the SPICA-NSS tool ({nssVersion}) ***")
@@ -100,40 +104,8 @@ class spica_NSS:
         self.myFont = (
             "Courier",
             11,
-        )  # 'bold')
+        )
         self.root.eval("::msgcat::mclocale en")  # Message in english
-
-        # self.root.rowconfigure(0, weight=1)
-        # self.root.columnconfigure(0, weight=1)
-
-        """
-        frame8 = Frame(self.root)
-        frame8.grid()
-
-        width = 180
-        height = 75
-        img = Image.open("/home/dsalabert/Workspace/SPICA-DB/GUI/erc_eu.png")
-        img = img.resize((width,height), Image.ANTIALIAS)
-        photoImg =  ImageTk.PhotoImage(img)
-        label = Label(frame8, image=photoImg, width=180)
-        label.grid(column=0, row=7)
-
-        width = 180
-        height = 75
-        img2 = Image.open("/home/dsalabert/Workspace/SPICA-DB/GUI/OCAlogoQlarge_WEB_250px.png")
-        # img = img.resize((width,height), Image.ANTIALIAS)
-        photoImg2 =  ImageTk.PhotoImage(img2)
-        label = Label(frame8, image=photoImg2)#, width=180)
-        label.grid(column=1, row=7)
-
-        width = 180
-        height = 75
-        img3 = Image.open("/home/dsalabert/Workspace/SPICA-DB/GUI/téléchargement.jpeg")
-        #img3 = img3.resize((width,height), Image.ANTIALIAS)
-        photoImg3 =  ImageTk.PhotoImage(img3)
-        label = Label(frame8, image=photoImg3)#, width=180)
-        label.grid(column=2, row=7)
-        """
 
         # Define StringVar and IntVar for various inputs
         strDate = StringVar()
@@ -180,7 +152,6 @@ class spica_NSS:
         FrameLog = Frame(self.root)
 
         # Date
-        # labelDate = Label(Frame1a, font=self.myFont)
         entryDate = Entry(
             FrameDate,
             textvariable=strDate,
@@ -208,10 +179,6 @@ class spica_NSS:
             cursor="hand1",
         )
         myTip = Hovertip(buttonQuery, "Click to query SPICA-DB.", hover_delay=1000)
-
-        # Apply_filters button
-        # buttonFilters = Button(FrameActions, text='APPLY_FILTERS', font=self.myFont, fg='white', bg='lightgoldenrod4',
-        #                     command=self.onFilters, cursor='hand1', state=DISABLED)
 
         # Apply Best declination button
         buttonBestDec = Button(
@@ -274,10 +241,6 @@ class spica_NSS:
             hover_delay=1000,
         )
 
-        # DRS button
-        # buttonDRS = Button(FrameActions, text='FAKE_DRS', font=self.myFont, fg='white', bg='purple',
-        #                   command=self.onDRS, cursor='hand1', state=DISABLED)
-
         # Quit button
         buttonQuit = Button(
             FrameActions,
@@ -307,16 +270,6 @@ class spica_NSS:
             hover_delay=1000,
         )
 
-        """
-        # Workpackages
-        labelProgName = Button(Frame2, text='Workpackages', relief='groove', font=self.myFont, activebackground = 'green',
-                               command=self.open_popupProgName, cursor='hand1')
-        """
-        """
-        # Instrumental modes
-        labelInstMode = Button(Frame3, text='Modes', relief='groove', font=self.myFont, activebackground = 'green',
-                               command=self.open_popupInstMode, cursor='hand1')
-        """
         # Workpackages (checkbuttons)
         labelProgName = Label(
             FrameWorkPackages,
@@ -326,7 +279,7 @@ class spica_NSS:
             bg="orange",
             width=15,
         )
-        # self.ProgName = ['WP01', 'WP02', 'WP03', 'WP07', 'WP08', 'WP09', 'WP10', 'WP11', 'WP12', 'WP13', 'WP15']
+
         self.ProgName = ["S01", "S02", "S03", "S04", "S05", "S06", "S07", "S08"]
         self.buttonProgName = []
         self.SelectedProgName = []
@@ -360,21 +313,6 @@ class spica_NSS:
             bg="orange",
             width=15,
         )
-        """
-        self.buttonInstMode = []
-        self.SelectedInstMode = []
-        for iInstMode in range(len(self.InstMode)):
-            InstModeId = IntVar()
-            InstModeId.set(0)
-            self.buttonInstMode.append(Checkbutton(Frame3, onvalue=self.InstMode[iInstMode],
-                                              text=iInstMode+1, state='normal',
-                                              variable=InstModeId, font=self.myFont,
-                                              selectcolor='red', activebackground='green',
-                                              command=self.plotSelectedInstMode, cursor='hand1',
-                                              ))
-            self.SelectedInstMode.append(InstModeId)
-            print( self.SelectedInstMode, InstModeId)
-        """
 
         self.InstMode = ["DIA", "DLD", "IMA", "TMP", "SPI"]
         self.buttonInstMode = []
@@ -512,7 +450,7 @@ class spica_NSS:
         self.entryVmagMax.insert(END, str(self.vmagmax))
         self.entryVmagMax.bind(
             "<Return>", (lambda _: self.entryVmagMaxCallback(self.entryVmagMax))
-        )  # self.labelValVmagMax = Label(self.frame5, text=str(self.vmagmax), fg='red', font=self.myFont)
+        )
 
         # Dec_Mean
         labelDecMean = Label(
@@ -549,7 +487,6 @@ class spica_NSS:
         )
 
         # Primary calibrators
-        # labelCalPrim = Label(frame6, text='Primary calibrators:', font=self.myFont, fg='black', bg='light blue', width=23)
         # RA range
         labelRaRangePrim = Label(
             self.FrameCalPrims,
@@ -616,7 +553,6 @@ class spica_NSS:
         )
 
         # Secondary calibrators
-        # labelCalSec = Label(frame7, text='Secondary calibrators:', font=self.myFont, fg='black', bg='light green', width=23)
         # RA range
         labelRaRangeSec = Label(
             self.FrameCalSecs,
@@ -735,7 +671,7 @@ class spica_NSS:
             cursor="pencil",
             width=5,
         )
-        # self.entryMinVisSec =Entry(self.FrameCalSecs, textvariable=self.intMaxBaseline, justify='right', font=self.myFont, cursor='pencil', width=5)
+
         self.entryMinVisSec.insert(END, str(self.minvissec))
         self.entryMinVisSec.bind(
             "<Return>", (lambda _: self.entryMinVisSecCallback(self.entryMinVisSec))
@@ -757,17 +693,12 @@ class spica_NSS:
             to_=30,
             resolution=10,
             tickinterval=300,
-        )  # , command= (lambda _:  self.entryMinVisSecCallback(self.entryMinVisSec)))
+        )
         self.entryMaxBaseline.set(self.maxbaseline)
-        # self.entryMaxBaseline.insert(END, str(self.maxbaseline))
         self.entryMaxBaseline.bind(
             "<ButtonRelease-1>",
             (lambda _: self.entryMinVisSecCallback2(self.entryMaxBaseline)),
         )
-
-        # Log button
-        # buttonLog = Button(FrameLog, text='Log', relief='groove', bg='AntiqueWhite3', font=self.myFont, activebackground='green',
-        #                       command=self.onLog, cursor='hand1', justify='center')
 
         # Gridding widgets
         FrameDate.rowconfigure(0, weight=1)
@@ -789,7 +720,6 @@ class spica_NSS:
         self.FrameObjects.grid(
             sticky=W, row=4, column=0, columnspan=2, padx=15, pady=1, ipady=1
         )
-        # self.FrameObjects.grid(row=4, column=0, padx=15, pady=5, ipady=4)
 
         FrameAddTarget.rowconfigure(0, weight=1)
         FrameAddTarget.columnconfigure(0, weight=1)
@@ -799,8 +729,7 @@ class spica_NSS:
         FramePriorities.grid(
             sticky=W, row=3, column=0, columnspan=2, padx=15, pady=1, ipady=1
         )
-        # self.FrameObjects.grid(sticky=W, row=4, column=0, columnspan=2, padx=15, pady=1, ipady=1)
-        # self.FrameAddTarget.grid(sticky=N, row=4, column=0, columnspan=2, padx=15, pady=1, ipady=1)
+
         self.FrameCalPrims.grid(
             sticky=W, row=5, column=0, columnspan=2, padx=15, ipadx=3, pady=1, ipady=1
         )
@@ -809,22 +738,15 @@ class spica_NSS:
         )
         FrameLog.grid(sticky=W, row=8, column=0, columnspan=2, padx=15, pady=1, ipady=1)
 
-        # labelDate.grid(column=0, row=0, padx=5)
         entryDate.grid(column=0, row=0, padx=5)
         self.labelValDate.grid(column=1, row=0, padx=5)
 
-        # l0 = Label(frame1a, text='                      ')
-        # l0.grid(column=3, row=iRow)
 
         buttonQuery.grid(column=0, row=0, padx=5)
-        # buttonFilters.grid(column=1, row=0, padx=5)
         buttonBestDec.grid(column=1, row=0, padx=5)
         buttonInfoTargets.grid(column=2, row=0, padx=5)
         buttonAspro.grid(column=3, row=0, padx=5)
         buttonReset.grid(column=4, row=0, padx=5)
-        # buttonCalPrim.grid(column=7, row=iRow)
-        # buttonCalSec.grid(column=8, row=iRow)
-        # buttonDRS.grid(column=4, row=0, padx=5)
         buttonQuit.grid(column=5, row=0, padx=5)
         buttonLog.grid(column=6, row=0, padx=5)
 
@@ -863,14 +785,13 @@ class spica_NSS:
         labelVmagMean.grid(column=5, row=1)
         VmagMeanValue.grid(column=6, row=1)
 
-        # labelCalPrim.grid(column=0, row=iRow, sticky='w', pady=15)
         labelRaRangePrim.grid(column=0, row=0, padx=5)
         self.entryRaRangePrim.grid(column=1, row=0)
         labelDecRangePrim.grid(column=2, row=0, padx=5)
         self.entryDecRangePrim.grid(column=3, row=0)
         labelVmagRangePrim.grid(column=4, row=0, padx=5)
         self.entryVmagRangePrim.grid(column=5, row=0)
-        # Button(self.FrameCalPrims, text='SEARCH', font=self.myFont, fg='white', bg = 'green', command=self.goCalPrim, cursor='hand1').grid(column=6, row=0, padx=5)
+
         Button(
             self.FrameCalPrims,
             text="UNDO",
@@ -881,7 +802,6 @@ class spica_NSS:
             cursor="hand1",
         ).grid(column=6, row=0, padx=5)
 
-        # labelCalSec.grid(column=0, row=iRow, sticky='w')
         labelRaRangeSec.grid(column=0, row=0, padx=5)
         self.entryRaRangeSec.grid(column=1, row=0)
         labelDecRangeSec.grid(column=2, row=0, padx=5)
@@ -897,7 +817,7 @@ class spica_NSS:
         self.entryMinVisSec.grid(column=5, row=1)
         labelMaxBaseline.grid(column=4, row=2, padx=5)
         self.entryMaxBaseline.grid(column=5, row=2, padx=5)
-        # Button(self.FrameCalSecs, text='SEARCH', font=self.myFont, fg='white', bg = 'green', command=self.goCalSec, cursor='hand1').grid(column=6, row=0, rowspan=1, padx=5)
+
         Button(
             self.FrameCalSecs,
             text="UNDO",
@@ -908,9 +828,6 @@ class spica_NSS:
             cursor="hand1",
         ).grid(column=6, row=0, rowspan=1, padx=5)
 
-        # buttonLog.grid(column=0, row=0)
-
-        # self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
         self.root.mainloop()
 
     def open_popupAddTarget(self):
@@ -982,7 +899,6 @@ class spica_NSS:
                 )
 
                 if confirm:
-
                     if len(tables_joined["index"]) == 1:
                         j = tables_joined["index"][0]
                         if self.index_AddTarget is None:
@@ -1101,8 +1017,6 @@ class spica_NSS:
                                 )
                             count += 1
 
-                            # self.my_treeAddTarget.insert(parent="", index="end", text="", values=row)
-
                         self.my_treeAddTarget.bind("<Double-1>", self.OnDoubleClick)
 
         else:
@@ -1125,97 +1039,24 @@ class spica_NSS:
                     title="Warning", message=f"{name} is not in SPICA-DB."
                 )
 
-    # def open_popupAddTarget2(self):
-    #     """
-
-    #     Returns
-    #     -------
-    #     None.
-
-    #     """
-    #     if self.popupAddTarget:
-    #         self.tree_frameAddTarget.destroy()
-    #         self.popupAddTarget = True
-    #     else:
-    #         self.popupAddTarget = True
-
-    #     self.tree_frameAddTarget = Toplevel(self.root)
-    #     tree_scroll = Scrollbar(self.tree_frameAddTarget)
-    #     tree_scroll.pack(side=RIGHT, fill=Y)
-    #     self.tree_frameAddTarget.title(f'List of possible fainter stars to include ({len(self.indexList_AddTarget)} objects)')
-
-    #     # Create the Treeview
-    #     if len(self.indexList_AddTarget) < 10:
-    #         self.lenAddTarget = len(self.indexList_AddTarget)
-    #     else:
-    #         self.lenAddTarget = 10
-    #     self.my_treeAddTarget = ttk.Treeview(self.tree_frameAddTarget, yscrollcommand=tree_scroll.set, selectmode="extended", height=self.lenAddTarget)
-    #     self.my_treeAddTarget.pack(expand=True, fill="y")
-
-    #     # Configure the Scrollbar
-    #     tree_scroll.config(command=self.my_treeAddTarget.yview)
-
-    #     # Define Our Columns
-    #     self.my_treeAddTarget["columns"] = ("SPICA-DB ID", "Target Main ID",
-    #                                           "Spec. Type", "Progname", "Spica Mode",
-    #                                           "Final Priority", "Completion Rate", "Ra", "Dec", "Diameter", "Vmag", "Hmag")
-
-    #     # Format Our Columns
-    #     self.my_treeAddTarget.column("#0", width=0, stretch=NO)
-    #     self.my_treeAddTarget.column("SPICA-DB ID", anchor=CENTER, width=100)
-    #     self.my_treeAddTarget.column("Target Main ID", anchor=CENTER, width=150)
-    #     self.my_treeAddTarget.column("Spec. Type", anchor=CENTER, width=150)
-    #     self.my_treeAddTarget.column("Progname", anchor=CENTER, width=150)
-    #     self.my_treeAddTarget.column("Spica Mode", anchor=CENTER, width=150)
-    #     #self.my_treeInfoTargets.column("Priority PI", anchor=CENTER, width=150)
-    #     self.my_treeAddTarget.column("Final Priority", anchor=CENTER, width=150)
-    #     self.my_treeAddTarget.column("Completion Rate", anchor=CENTER, width=150)
-    #     self.my_treeAddTarget.column("Ra", anchor=CENTER, width=150)
-    #     self.my_treeAddTarget.column("Dec", anchor=CENTER, width=150)
-    #     self.my_treeAddTarget.column("Diameter", anchor=CENTER, width=150)
-    #     self.my_treeAddTarget.column("Vmag", anchor=CENTER, width=150)
-    #     self.my_treeAddTarget.column("Hmag", anchor=CENTER, width=150)
-
-    #     # Create Headings
-    #     self.my_treeAddTarget.heading("#0", text="", anchor=W)
-    #     self.my_treeAddTarget.heading("SPICA-DB ID", text="SPICA-DB ID", anchor=CENTER)
-    #     self.my_treeAddTarget.heading("Target Main ID", text="Target Main ID", anchor=CENTER)
-    #     self.my_treeAddTarget.heading("Spec. Type", text="Spec. Type", anchor=CENTER)
-    #     self.my_treeAddTarget.heading("Progname", text="Progname", anchor=CENTER)
-    #     self.my_treeAddTarget.heading("Spica Mode", text="Spica Mode", anchor=CENTER)
-    #     #self.my_treeInfoTargets.heading("Priority PI", text="Priority PI", anchor=CENTER)
-    #     self.my_treeAddTarget.heading("Final Priority", text="Final Priority", anchor=CENTER)
-    #     self.my_treeAddTarget.heading("Completion Rate", text="Completion Rate", anchor=CENTER)
-    #     #self.my_treeInfoTargets.heading("Dec", text="Dec", anchor=CENTER)
-    #     self.my_treeAddTarget.heading("Ra", text="Ra", anchor=CENTER, command=lambda _col="Ra": \
-    #                                    self.treeview_sort_column(self.my_treeAddTarget, _col, False))
-    #     self.my_treeAddTarget.heading("Dec", text="Dec", anchor=CENTER, command=lambda _col="Dec": \
-    #                                    self.treeview_sort_column(self.my_treeAddTarget, _col, False))
-    #     #for col in self.my_treeInfoTargets["columns"]:
-    #     #    self.my_treeInfoTargets.heading(col, text=col, anchor=CENTER, command=lambda _col=col: \
-    #     #                                    self.treeview_sort_column(self.my_treeInfoTargets, _col, False))
-    #     self.my_treeAddTarget.heading("Diameter", text="Diameter", anchor=CENTER, command=lambda _col="Diameter": \
-    #                                    self.treeview_sort_column(self.my_treeAddTarget, _col, False))
-    #     self.my_treeAddTarget.heading("Vmag", text="Vmag", anchor=CENTER, command=lambda _col="Vmag": \
-    #                                    self.treeview_sort_column(self.my_treeAddTarget, _col, False))
-    #     self.my_treeAddTarget.heading("Hmag", text="Hmag", anchor=CENTER, command=lambda _col="Hmag": \
-    #                                    self.treeview_sort_column(self.my_treeAddTarget, _col, False))
-    #     #self.my_treeInfoTargets.heading("Vmag", text="Vmag", anchor=CENTER)
-
-    #     # Insert AddTargets in popup
-    #     self.insert_popupAddTarget()
-
-    #     #
-    #     self.tree_frameAddTarget.protocol('WM_DELETE_WINDOW', self.closeframeAddTarget)
-
     def open_popupInfoTargets(self):
         """
+        Open a popup window listing the currently selected science targets.
 
+        Creates a ``Toplevel`` Treeview window displaying key properties of
+        every target in ``self.indexList_Targets`` (SPICA-DB ID, main
+        identifier, spectral type, programme name, SPICA mode, final
+        priority, completion rate, RA, Dec, angular diameter, V magnitude
+        and H magnitude).  If the popup is already open it is first
+        destroyed and rebuilt so the contents are always up to date.
 
-        Returns
-        -------
-        None.
+        Column headings for Completion Rate, Ra, Dec, Diameter, Vmag and
+        Hmag are clickable and trigger ascending/descending sort via
+        :meth:`treeview_sort_column`.  The window title shows the total
+        number of currently selected targets.
 
+        Returns:
+            None
         """
         if self.spica_catg is None:
             messagebox.showinfo(title="Info", message="Please query SPICA-DB first.")
@@ -1293,14 +1134,12 @@ class spica_NSS:
         self.my_treeInfoTargets.heading("Spec. Type", text="Spec. Type", anchor=CENTER)
         self.my_treeInfoTargets.heading("Progname", text="Progname", anchor=CENTER)
         self.my_treeInfoTargets.heading("Spica Mode", text="Spica Mode", anchor=CENTER)
-        # self.my_treeInfoTargets.heading("Priority PI", text="Priority PI", anchor=CENTER)
         self.my_treeInfoTargets.heading(
             "Final Priority", text="Final Priority", anchor=CENTER
         )
         self.my_treeInfoTargets.heading(
             "Completion Rate", text="Completion Rate", anchor=CENTER
         )
-        # self.my_treeInfoTargets.heading("Dec", text="Dec", anchor=CENTER)
         self.my_treeInfoTargets.heading(
             "Completion Rate",
             text="Completion Rate",
@@ -1325,9 +1164,6 @@ class spica_NSS:
                 self.my_treeInfoTargets, _col, False
             ),
         )
-        # for col in self.my_treeInfoTargets["columns"]:
-        #    self.my_treeInfoTargets.heading(col, text=col, anchor=CENTER, command=lambda _col=col: \
-        #                                    self.treeview_sort_column(self.my_treeInfoTargets, _col, False))
         self.my_treeInfoTargets.heading(
             "Diameter",
             text="Diameter",
@@ -1352,7 +1188,6 @@ class spica_NSS:
                 self.my_treeInfoTargets, _col, False
             ),
         )
-        # self.my_treeInfoTargets.heading("Vmag", text="Vmag", anchor=CENTER)
 
         # Insert InfoTargets in popup
         self.insert_popupInfoTargets()
@@ -1421,10 +1256,6 @@ class spica_NSS:
                 ra = ra + midnight_offset
             if ra > self.ra_sunset / 15:
                 ra = ra - midnight_offset
-
-            # if  ma.is_masked(record['hmag']):
-            #    record['hmag'] = ''
-            #    pdb.set_trace()
 
             if not ma.is_masked(record["priority_pi2"]):
                 flag_completion2 = self.update_flag_completion(
@@ -1522,10 +1353,6 @@ class spica_NSS:
                 ra = ra + midnight_offset
             if ra > self.ra_sunset / 15:
                 ra = ra - midnight_offset
-
-            # if  ma.is_masked(record['hmag']):
-            #    record['hmag'] = ''
-            #    pdb.set_trace()
 
             if not ma.is_masked(record["priority_pi2"]):
                 flag_completion2 = self.update_flag_completion(
@@ -1648,12 +1475,18 @@ class spica_NSS:
 
     def open_popupBestDec(self):
         """
+        Open a popup window showing the target count per declination band.
 
+        Bins all observable science targets (from ``self.targetListInit``)
+        into 5-degree declination strips from −30° to 90°, applying the
+        current V-magnitude limits.  The result is displayed in a sortable
+        ``Toplevel`` Treeview with three columns: Dec Low, Dec High, and
+        Count.  The Count column is clickable for ascending/descending sort.
 
-        Returns
-        -------
-        None.
+        If the popup is already open it is first destroyed and rebuilt.
 
+        Returns:
+            None
         """
         if self.spica_catg is None:
             messagebox.showinfo(title="Info", message="Please query SPICA-DB first.")
@@ -1664,15 +1497,7 @@ class spica_NSS:
             self.popupBestDec = True
         else:
             self.popupBestDec = True
-        """
-        # Query all spica-db catalog content
-        if self.ra_sunrise < self.ra_sunset:
-            ra_min = self.ra_sunset-180
-            ra_max = self.ra_sunrise+180
-        else:
-            ra_min = self.ra_sunset
-            ra_max = self.ra_sunrise
-        """
+
         dec = self.targetListInit["dec"]
         vmag = self.targetListInit["vmag"]
         decSum = []
@@ -1700,22 +1525,6 @@ class spica_NSS:
         decLow = np.arange(-30, 90, 5)
         decHigh = np.arange(-25, 95, 5)
         decBestRanges = [list(decLow), list(decHigh), list(decSum)]
-
-        # adqlQuery = ("SELECT round(s.dec / 5, 0)*5, round(s.dec / 5, 0)*5+5, count (*) FROM " + self.catalogSpica + " s where s.vmag < " + self.strVmagMean.get() +
-        #             " and s.ra between " + str(ra_min) +" and " + str(ra_max) +
-        #             " group by round(s.dec / 5, 0)*5 " +
-        #             " order by 3 desc")
-        # service = vo.dal.TAPService(oidbTapUrl)
-        # results = service.search(adqlQuery)
-
-        # # store new information into data variable
-        # data = results.to_table()
-
-        # # Rename colums and sort
-        # data.rename_column("mult","dec_low")
-        # data.rename_column("sum","dec_high")
-        # data.rename_column("count_all","count")
-        # data.sort('dec_low')
 
         self.tree_frameBestDec = Toplevel(self.root)
         self.tree_frameBestDec.title(
@@ -1753,7 +1562,6 @@ class spica_NSS:
         self.my_treeBestDec.heading(
             "Dec_high", text="Dec. High (\N{DEGREE SIGN})", anchor=CENTER
         )
-        # self.my_treeBestDec.heading("Count", text=f"Total ({str(decTotal)} objects)", anchor=CENTER)
         self.my_treeBestDec.heading(
             "Count",
             text=f"Total ({str(decTotal)} objects)",
@@ -1799,18 +1607,25 @@ class spica_NSS:
 
     def plotSelectedProgName(self):
         """
+        Update the target selection when the programme-name filter changes.
 
-        Returns
-        -------
-        None.
+        Iterates over all checkbutton states in ``self.SelectedProgName`` and
+        rebuilds ``self.indexProgName`` as the union of row indices matching
+        any enabled programme code (matched against both ``progname`` and
+        ``progname2`` columns with hyphen-separated splitting).  The combined
+        index list is then propagated through :meth:`getSelectedTargets`,
+        :meth:`getAddTarget` and :meth:`plot_radec`, and any open target
+        info or add-target popup windows are refreshed.
 
+        Returns:
+            None
         """
         self.indexProgName = []
         self.indexProgName2 = []
         for j in self.SelectedProgName:
             progname = j.get()
             if progname != str(0):
-                # TODO build a filter function to apply on the table atht will split every progname to search for a match
+                # TODO build a filter function to apply on the table that will split every progname to search for a match
                 self.indexProgName += list(
                     filter(
                         lambda x: progname in self.spica_catg["progname"][x].split("-"),
@@ -1824,11 +1639,6 @@ class spica_NSS:
                         range(len(self.spica_catg)),
                     )
                 )
-        """
-        self.indexList_Targets = reduce(np.intersect1d, [self.indexProgName, self.indexInstMode, self.indexFinalPriority,
-                                                          self.indexDecMin, self.indexDecMax,
-                                                          self.indexVmagMin, self.indexVmagMax])
-        """
 
         if self.indexProgName2:
             self.indexProgName = self.indexProgName + self.indexProgName2
@@ -1852,23 +1662,12 @@ class spica_NSS:
                 f"List of possible fainter stars to include ({len(self.indexList_AddTarget)} objects)"
             )
 
-    """
-    def state_buttonFinalPriority(self, nb_pId, inb_pId):
-        if nb_pId != 0:
-            self.buttonFinalPriority[inb_pId]['state']='normal'
-            self.buttonFinalPriority[inb_pId]['onvalue']=inb_pId+1
-        else:
-            self.buttonFinalPriority[inb_pId]['state']='normal'
-            self.buttonFinalPriority[inb_pId]['onvalue']=0
-    """
-
-    def plot_radec(self):  # , indexList, indexList1, indexList2):
+    def plot_radec(self):
         """
         Plots Right Ascension (RA) and Declination (Dec) of observable targets with different priorities and modes.
 
-        Returns
-        -------
-        None.
+        Returns:
+            None.
         """
         list_targets = self.spica_catg[self.indexList_Targets]
         list_targets = list_targets[
@@ -1895,7 +1694,6 @@ class spica_NSS:
         modeldiam = []
         for j in range(len(list_targets)):
             a = model[j].replace("}{", "},{")
-            # print(list_targets['spicadb_id'][j], list_targets['target_main_id'][j], list_targets['piname'][j])
             modeltype.append(json.loads(a)[0]["type"])
             if modeltype[j] == "disk":
                 modeldiam.append(json.loads(a)[0]["diameter"])
@@ -1906,7 +1704,7 @@ class spica_NSS:
 
         fig, self.ax = plt.subplots(
             3, figsize=(11, 6), sharex=True
-        )  # Figure(figsize = (6.5,4), dpi = 100) sharey=True, sharex=True)
+        )
         self.nbtotal_p1 = np.count_nonzero([(list_targets["priority_final"] == 1)])
         self.nbtotal_p2 = np.count_nonzero([(list_targets["priority_final"] == 2)])
         self.nbtotal_p3 = np.count_nonzero([(list_targets["priority_final"] == 3)])
@@ -1937,26 +1735,6 @@ class spica_NSS:
             ", #P4:",
             self.nbtotal_p4,
         )
-        # self.state_buttonFinalPriority(nb_p1, 0)
-        # self.state_buttonFinalPriority(nb_p2, 1)
-        # self.state_buttonFinalPriority(nb_p3, 2)
-        """
-        if nb_p1 != 0:
-            self.buttonFinalPriority[0]['state']='normal'
-        else:
-            #self.buttonFinalPriority[0]['state']='disabled'
-            self.buttonFinalPriority[0]['onvalue']=0
-        if nb_p2 != 0:
-            self.buttonFinalPriority[1]['state']='normal'
-        else:
-            #self.buttonFinalPriority[0]['state']='disabled'
-            self.buttonFinalPriority[1]['onvalue']=0
-        if nb_p3 != 0:
-            self.buttonFinalPriority[2]['state']='normal'
-        else:
-            #self.buttonFinalPriority[0]['state']='disabled'
-            self.buttonFinalPriority[2]['onvalue']=0
-        """
 
         modename = ["DIA", "DLD", "IMA", "TMP", "SPI"]
         markername = ["s", "o", "^", "D", "v"]
@@ -1975,7 +1753,6 @@ class spica_NSS:
             midnight_offset = 0
 
         for iMode in range(len(uniqMode)):
-
             ind_p1 = [
                 (list_targets["priority_final"] == 1)
                 & (list_targets["spica_mode"] == uniqMode[iMode])
@@ -2625,8 +2402,8 @@ class spica_NSS:
             nb_calprim = len(self.indexList_CalPrim)  # len(self.calprim_catg)
         else:
             nb_calprim = 0
-        if self.indexList_CalSec is not None:  # self.calsec_catg:
-            nb_calsec = len(self.indexList_CalSec)  # len(self.calsec_catg)
+        if self.indexList_CalSec is not None:
+            nb_calsec = len(self.indexList_CalSec)
         else:
             nb_calsec = 0
         text1 = TextArea(
@@ -2814,43 +2591,20 @@ class spica_NSS:
         canvas.draw()
         canvas.get_tk_widget().grid()  # row=0,column=0)
 
-        # cursor = DataCursorPlot.FollowDotCursor(self.ax[0], ra_morning+midnight_offset, dec_morning)
-
-        # #canvas.draw()
-        # # Add navigation toolbar
-        # toolbarFrame = Frame(framePlot)
-        # toolbarFrame.grid()#row=1,column=0)
-        # toolbar = NavigationToolbar2Tk(canvas, toolbarFrame)
-
-        """
-        for i in self.tree_frameInfoTargets.get_children():
-            self.tree_frameInfoTargets.delete(i)
-        """
-
-        """
-        if self.popupInfoTargets:
-            self.tree_frameInfoTargets.destroy()
-            self.popupInfoTargets = False
-            #self.open_popupInfoTargets()
-         """
-        """
-        if self.popupBestDec:
-            self.tree_frameBestDec.destroy()
-            self.popupBestDec = False
-            #self.open_popupBestDec()
-        """
 
     def open_popupProgName(self):
         """
+        Open a popup window for selecting SPICA work-package programme names.
 
+        Derives the unique programme codes available under the currently
+        active instrumental-mode filter and presents them as a set of
+        checkbuttons inside a ``Toplevel`` window.  Buttons labelled
+        SELECT ALL, SUBMIT, RESET and CLOSE are also provided.
 
-        Returns
-        -------
-        None.
-
+        Returns:
+            None
         """
         top = Toplevel(self.root)
-        # self.top.geometry('+850+50')
         top.title("Available workpackages")
         Label(top, text="Workpackages: ", font=self.myFont).grid()
 
@@ -2921,11 +2675,13 @@ class spica_NSS:
 
     def select_allProgName(self):
         """
+        Select all programme-name checkbuttons in the current popup.
 
-        Returns
-        -------
-        None.
+        Iterates over every button in ``self.buttonProgName`` and calls its
+        ``select()`` method, effectively enabling all available work packages.
 
+        Returns:
+            None
         """
         for j in self.buttonProgName:
             j.select()
@@ -2935,27 +2691,17 @@ class spica_NSS:
 
     def plotSelectedInstMode(self):
         """
+        Update the target selection when the instrumental-mode filter changes.
 
-        Returns
-        -------
-        None.
+        Rebuilds ``self.indexInstMode`` as the union of row indices matching
+        any enabled SPICA mode (DIA, DLD, IMA, TMP, SPI) selected in
+        ``self.SelectedInstMode``.  The combined index is propagated through
+        :meth:`getSelectedTargets`, :meth:`getAddTarget` and
+        :meth:`plot_radec`, and any open target info or add-target popups are
+        refreshed.
 
-        """
-        """
-        self.indexInstMode = []
-        count= 0
-
-        for j in self.SelectedInstMode:
-            if (j.get() != str(0)):
-                if count == 0:
-                    self.indexInstMode = list(filter(lambda x: self.spica_catg['spica_mode'][x] == j.get(), range(len(self.spica_catg))))
-                else:
-                    self.indexInstMode = np.concatenate([self.indexInstMode, list(filter(lambda x: self.spica_catg['spica_mode'][x] == j.get(), range(len(self.spica_catg))))])
-                count+=1
-        self.indexList_Targets = reduce(np.intersect1d, [self.indexProgName, self.indexInstMode, self.indexFinalPriority,
-                                                          self.indexDecMin, self.indexDecMax,
-                                                          self.indexVmagMin, self.indexVmagMax])
-        self.plot_radec()#self.indexList_Targets, self.indexList_CalPrim, self.indexList_CalSec)
+        Returns:
+            None
         """
         self.indexInstMode = []
         count = 0
@@ -2982,11 +2728,7 @@ class spica_NSS:
                 )
             count += 1
         self.indexInstMode = self.indexInstMode.astype("int")
-        """
-        self.indexList_Targets = reduce(np.intersect1d, [self.indexProgName, self.indexInstMode, self.indexFinalPriority,
-                                                          self.indexDecMin, self.indexDecMax,
-                                                          self.indexVmagMin, self.indexVmagMax])
-        """
+
         self.getSelectedTargets()
         self.getAddTarget()
         self.plot_radec()
@@ -3008,11 +2750,17 @@ class spica_NSS:
 
     def plotSelectedFinalPriority(self):
         """
+        Update the target selection when the final-priority filter changes.
 
-        Returns
-        -------
-        None.
+        Rebuilds ``self.indexFinalPriority`` as the union of row indices
+        matching any enabled priority level (1–4) selected in
+        ``self.SelectedFinalPriority``.  The combined index is propagated
+        through :meth:`getSelectedTargets`, :meth:`getAddTarget` and
+        :meth:`plot_radec`, and any open target info or add-target popups are
+        refreshed.
 
+        Returns:
+            None
         """
         self.indexFinalPriority = []
         count = 0
@@ -3040,11 +2788,7 @@ class spica_NSS:
                 )
             count += 1
         self.indexFinalPriority = self.indexFinalPriority.astype("int")
-        """
-        self.indexList_Targets = reduce(np.intersect1d, [self.indexProgName, self.indexInstMode, self.indexFinalPriority,
-                                                          self.indexDecMin, self.indexDecMax,
-                                                          self.indexVmagMin, self.indexVmagMax])
-        """
+
         self.getSelectedTargets()
         self.getAddTarget()
         self.plot_radec()
@@ -3066,11 +2810,15 @@ class spica_NSS:
 
     def open_popupInstMode(self):
         """
+        Open a popup window for selecting SPICA instrumental modes.
 
-        Returns
-        -------
-        None.
+        Derives the unique instrumental modes available under the current
+        programme-name filter and presents them as checkbuttons inside a
+        ``Toplevel`` window.  SPI is always placed last.  SUBMIT and CLOSE
+        buttons are also provided.
 
+        Returns:
+            None
         """
         top = Toplevel(self.root)
         # top.geometry('250x750+750+50')
@@ -3142,11 +2890,7 @@ class spica_NSS:
                 range(len(self.spica_catg)),
             )
         )
-        """
-        self.indexList_Targets = reduce(np.intersect1d, [self.indexProgName, self.indexInstMode, self.indexFinalPriority,
-                                                          self.indexDecMin, self.indexDecMax,
-                                                          self.indexVmagMin, self.indexVmagMax])
-        """
+
         self.getSelectedTargets()
         self.getAddTarget()
         self.plot_radec()
@@ -3177,11 +2921,7 @@ class spica_NSS:
                 range(len(self.spica_catg)),
             )
         )
-        """
-        self.indexList_Targets = reduce(np.intersect1d, [self.indexProgName, self.indexInstMode, self.indexFinalPriority,
-                                                          self.indexDecMin, self.indexDecMax,
-                                                          self.indexVmagMin, self.indexVmagMax])
-        """
+
         self.getSelectedTargets()
         self.getAddTarget()
         self.plot_radec()
@@ -3210,11 +2950,7 @@ class spica_NSS:
                 range(len(self.spica_catg)),
             )
         )
-        """
-        self.indexList_Targets = reduce(np.intersect1d, [self.indexProgName, self.indexInstMode, self.indexFinalPriority,
-                                                          self.indexDecMin, self.indexDecMax,
-                                                          self.indexVmagMin, self.indexVmagMax])
-        """
+
         self.getSelectedTargets()
         self.getAddTarget()
         self.plot_radec()
@@ -3252,11 +2988,6 @@ class spica_NSS:
             )
         )
 
-        """
-        self.indexList_Targets = reduce(np.intersect1d, [self.indexProgName, self.indexInstMode, self.indexFinalPriority,
-                                                          self.indexDecMin, self.indexDecMax,
-                                                          self.indexVmagMin, self.indexVmagMax])
-        """
         self.getSelectedTargets()
         self.getAddTarget()
         self.plot_radec()
@@ -3293,7 +3024,6 @@ class spica_NSS:
         print(f"[INFO] Number of completed SPICA-DB targets: {len(nb_completion_ok)}")
 
         uniqProgName = list(np.unique(spicadb_load["progname"]))
-        # perc_Progselected = np.zeros(len(uniqProgName))
         perc_Progcompleted = np.zeros(len(uniqProgName))
 
         for i, prog_name in enumerate(uniqProgName):
@@ -3308,18 +3038,15 @@ class spica_NSS:
                 if spicadb_load["progname"][x] == prog_name
                 and spicadb_load["completion_rate"][x] >= 1
             )
-            # nb_selected = sum(1 for x in range(len(list_targets)) if list_targets['progname'][x] == prog_name)
 
             print(
                 f"[INFO] Program: {prog_name} -> Total: {nb_total}, Completed: {nb_completed}"
             )
 
             if nb_total > 0:
-                # perc_Progselected[i] = nb_selected / nb_total * 100
                 perc_Progcompleted[i] = nb_completed / nb_total * 100
 
         uniqInstMode = list(np.unique(spicadb_load["spica_mode"]))
-        # perc_Modeselected = np.zeros(len(self.uniqInstMode_jmmc))
         perc_Modecompleted = np.zeros(len(uniqInstMode))
 
         for i, mode in enumerate(uniqInstMode):
@@ -3334,14 +3061,12 @@ class spica_NSS:
                 if spicadb_load["spica_mode"][x] == mode
                 and spicadb_load["completion_rate"][x] >= 1
             )
-            # nb_selected = sum(1 for x in range(len(list_targets)) if list_targets['spica_mode'][x] == mode)
 
             print(
                 f"[INFO] Inst. mode: {mode} -> Total: {nb_total}, Completed: {nb_completed}"
             )
 
             if nb_total > 0:
-                # perc_Modeselected[i] = nb_selected / nb_total * 100
                 perc_Modecompleted[i] = nb_completed / nb_total * 100
 
         print(f"[INFO] Perc. Completed Programs (%): {np.round(perc_Progcompleted,2)}")
@@ -3403,10 +3128,6 @@ class spica_NSS:
 
     def onQuit(self):
         if messagebox.askyesno("Exit", "Do you want to quit the SPICA-NSS Tool?"):
-            """
-            if self.client:
-                self.client.disconnect()
-            """
             self.root.destroy()
             plt.close("all")
             print("\nBye!")
@@ -3421,36 +3142,17 @@ class spica_NSS:
 
     def onAspro(self):
         """
+        Trigger the export of the current selection to Aspro2 via SAMP.
 
-        Returns
-        -------
-        None.
+        Validates that the SPICA catalog has been loaded, then delegates to
+        :meth:`import2aspro` which sorts the targets by meridian transit
+        time, attaches diameter models, assigns NSS type labels and calls
+        :meth:`samp_votable` to broadcast the VOtable to any running Aspro2
+        instance.
 
+        Returns:
+            None
         """
-        """
-        #print(datetime.now().strftime('%H:%M:%S >>> '), 'Sending the selected targets to ASPRO...')
-        self.topAspro= Toplevel(self.root)
-        #top.geometry('250x750+750+50')
-        Label(self.topAspro, text= f'You are about to import to ASPRO2:\n', font=self.myFont).grid(column=0,row=0,padx=5,pady=4)#,columnspan=0)
-        Label(self.topAspro, text= f'- {len(self.spica_catg[self.indexList_Targets])} science targets,\n', font=self.myFont).grid(column=0,row=1,sticky='W',padx=10)
-
-        if self.calprim_catg:
-            Label(self.topAspro, text= f'- {len(self.calprim_catg[self.indexList_CalPrim])} primary calibrators,\n', font=self.myFont).grid(column=0,row=2,sticky='W',padx=10)
-        else:
-            Label(self.topAspro, text= f'- 0 primary calibrator,\n', font=self.myFont).grid(column=0,row=2,sticky='W',padx=10)
-        if self.calsec_catg:
-            Label(self.topAspro, text= f'- {len(self.calsec_catg[self.indexList_CalSec])} secondary calibrators.', font=self.myFont).grid(column=0,row=3,sticky='W',padx=10)
-        else:
-            Label(self.topAspro, text= f'- 0 secondary calibrator.', font=self.myFont).grid(column=0,row=3,sticky='W',padx=10)
-        Label(self.topAspro, text= f'\n').grid(column=0,row=4)
-
-        frame = Frame(self.topAspro)
-        frame.grid(pady=5)
-        Label(frame, text= f'Are you sure?', font=self.myFont).grid(column=0,row=5,columnspan=2)
-        Button(frame, text='Yes', font=self.myFont, fg='white', bg='green', cursor='hand1', command=self.import2aspro).grid(column=0,row=6)
-        Button(frame, text='No', font=self.myFont, fg='white', bg='red', cursor='hand1', command=self.topAspro.destroy).grid(column=1,row=6)
-        """
-
         if self.spica_catg is None:
             messagebox.showinfo(title="Info", message="Please query SPICA-DB first.")
             return
@@ -3458,7 +3160,6 @@ class spica_NSS:
         self.import2aspro()
 
     def import2aspro(self):
-
         targets2aspro = self.spica_catg[self.indexList_Targets]
         # Replace by mainID by HD name if needed
         targets2aspro = self.replacebyHDname(targets2aspro)
@@ -3505,21 +3206,21 @@ class spica_NSS:
 
     def addDiamModel(self, targets, calibrators1=None, calibrators2=None):
         """
+        Add a unified ``diam`` column to targets and calibrator tables.
 
+        Parses the JSON model stored in the ``model`` column of each science
+        target to extract the angular diameter (``diameter`` for uniform
+        disks or ``minor_axis_diameter`` for elongated disks) and stores it
+        in a new ``diam`` column.  For primary calibrators the ``ldd`` column
+        is used, and for secondary calibrators the ``UDDR`` column is used.
 
-        Parameters
-        ----------
-        targets : TYPE
-            DESCRIPTION.
-        calibrators1 : TYPE, optional
-            DESCRIPTION. The default is None.
-        calibrators2 : TYPE, optional
-            DESCRIPTION. The default is None.
+        Args:
+            targets (astropy.table.Table): Science target table; must contain a ``model`` JSON column.
+            calibrators1 (astropy.table.Table, optional): Primary calibrator table; must contain an ``ldd`` column.
+            calibrators2 (astropy.table.Table, optional): Secondary calibrator table; must contain a ``UDDR`` column.
 
-        Returns
-        -------
-        None.
-
+        Returns:
+            tuple of astropy.table.Table: The three input tables with a ``diam`` column added in-place.
         """
         model = targets["model"]
         modeltype = []
@@ -3548,21 +3249,20 @@ class spica_NSS:
 
     def addNssType(self, targets, calibrators1=None, calibrators2=None):
         """
+        Add an ``nss_type`` classification column to each table.
 
+        Marks each row with a string label indicating its role in the
+        observing sequence: ``"Science"`` for science targets,
+        ``"CalPrim"`` for primary calibrators, and ``"CalSec"`` for
+        secondary calibrators.
 
-        Parameters
-        ----------
-        targets : TYPE
-            DESCRIPTION.
-        calibrators1 : TYPE, optional
-            DESCRIPTION. The default is None.
-        calibrators2 : TYPE, optional
-            DESCRIPTION. The default is None.
+        Args:
+            targets (astropy.table.Table): Science target table.
+            calibrators1 (astropy.table.Table, optional): Primary calibrator table.
+            calibrators2 (astropy.table.Table, optional): Secondary calibrator table.
 
-        Returns
-        -------
-        None.
-
+        Returns:
+            tuple of astropy.table.Table: The three input tables with the ``nss_type`` column added.
         """
         targets["nss_type"] = ["Science"] * len(targets)
         if calibrators1:
@@ -3574,11 +3274,23 @@ class spica_NSS:
 
     def onQuery(self):
         """
+        Query the SPICA database and initialise the GUI state.
 
-        Returns
-        -------
-        None.
+        On the first call (``self.iter == 0``) the full SPICA catalog is
+        fetched via :meth:`dbquery_tap` and targets with a completion rate of
+        1 (fully observed) are excluded.  On subsequent calls the previously
+        downloaded catalog is reused, avoiding redundant network requests,
+        and all filter entry widgets are reset to their default values.
 
+        The observable RA window for the selected date is computed from
+        CHARA sunset/sunrise times.  Each target's final priority and
+        completion flag are then calculated and programme-name, mode and
+        priority checkbuttons are configured accordingly.  Object names are
+        optionally replaced by their HD identifiers before the sky plot is
+        refreshed via :meth:`plot_radec`.
+
+        Returns:
+            None
         """
         print(f"\n[INFO] Querying the SPICA-DB catalog [{self.catalogSpica}]...")
 
@@ -3604,10 +3316,8 @@ class spica_NSS:
         self.chara = Observer.at_site("CHARA")
 
         # Get the observable RA domain between sunset and sunrise
-        # print(self.iter)
         self.ra_sunset, self.ra_sunrise = self.observable_domain()
         if self.iter == 0:
-
             # Select only stars with a completion_rate < 1
             tableTargets = self.dbquery_tap()[self.dbquery_tap()["completion_rate"] < 1]
 
@@ -3759,9 +3469,6 @@ class spica_NSS:
             self.entryMinVisSec.insert(END, str(self.minvissec_default))
             self.entryMaxBaseline.set(self.maxbaseline_default)
 
-        # nb_completion_ok = list(filter(lambda x: tableTargets['completion_rate'][x] >= 1, range(len(tableTargets))))
-        # print(f'[INFO] Number of completed SPICA-DB targets: {len(nb_completion_ok)}')
-
         # Filtering on RA
         chara_geolat = 34.220920783 * np.pi / 180.0
         dec = tableTargets["dec"] * np.pi / 180.0
@@ -3780,12 +3487,6 @@ class spica_NSS:
                 (tableTargets["ra"] + self.dif > self.ra_sunset)
                 | (tableTargets["ra"] - self.dif < self.ra_sunrise)
             ]
-        """
-        if self.ra_sunset < self.ra_sunrise:
-            tableTargets = tableTargets[(tableTargets['ra'] > self.ra_sunset) & (tableTargets['ra'] < self.ra_sunrise)]
-        else:
-            tableTargets = tableTargets[(tableTargets['ra'] > self.ra_sunset) | (tableTargets['ra'] < self.ra_sunrise)]
-        """
 
         self.uniqProgName = sorted(set(tableTargets["progname"]))
         self.uniqInstMode = sorted(set(tableTargets["spica_mode"]))
@@ -3813,22 +3514,17 @@ class spica_NSS:
                 )
             )
 
-            # self.priority_final.append(self.update_priority_final(self.flag_completion[i],
-            #                                                     tableTargets['priority_pi'][i]))
-
             tableTargets["priority_final"][i] = self.update_priority_final2(
                 self.flag_completion[i],
                 tableTargets["priority_pi"][i],
                 tableTargets["progname2"][i],
             )
         for iProgName in list(range(len(self.ProgName))):
-            # print(self.ProgName[iProgName])
             if np.any([(tableTargets["progname"] == self.ProgName[iProgName])]):
                 self.buttonProgName[iProgName]["state"] = "normal"
                 self.buttonProgName[iProgName].select()
 
         for iInstMode in list(range(len(self.InstMode))):
-            # print(self.InstMode[iInstMode])
             if np.any([(tableTargets["spica_mode"] == self.InstMode[iInstMode])]):
                 self.buttonInstMode[iInstMode]["state"] = "normal"
                 self.buttonInstMode[iInstMode].select()
@@ -3851,11 +3547,18 @@ class spica_NSS:
 
     def onReset(self):
         """
+        Reset the application to its initial state.
 
-        Returns
-        -------
-        None.
+        Forces a fresh query of the SPICA database by resetting
+        ``self.iter`` to 0 before calling :meth:`onQuery`.  All entry
+        widgets for science-object filters and calibrator search parameters
+        are restored to their class-level defaults, and any open target info
+        or best-declination popup windows are closed.
 
+        Does nothing if the SPICA catalog has not yet been loaded.
+
+        Returns:
+            None
         """
         if self.spica_catg is None:
             messagebox.showinfo(title="Info", message="Please query SPICA-DB first.")
@@ -4002,9 +3705,6 @@ class spica_NSS:
         self.entryMaxBaseline.set(self.maxbaseline_default)
 
         print("[INFO] nbtotal", self.nbtotal_p1, self.nbtotal_p2, self.nbtotal_p3)
-        # To reinitialize the fake DRS
-        # for j in self.SelectedFinalPriority:
-        #    j.set(0)
 
         if self.popupInfoTargets:
             self.tree_frameInfoTargets.destroy()
@@ -4016,11 +3716,20 @@ class spica_NSS:
 
     def onDRS(self):
         """
+        Simulate a DRS/QCS pipeline reduction on the selected targets.
 
-        Returns
-        -------
-        None.
+        Iterates over the currently selected science targets and increments
+        their completion rate (via :meth:`update_completion_rate`), their OB
+        reference counter and resets their QCS flag to 0.  The local cached
+        catalog (``self.spica_catg_jmmc``) is then updated accordingly so
+        that subsequent queries reflect the simulated observations without
+        hitting the network.
 
+        This method is intended as a development aid to test the evolution of
+        target priorities after hypothetical DRS/QCS runs.
+
+        Returns:
+            None
         """
         print(f"\n[INFO] Updating the catalog after DRS...")
 
@@ -4047,41 +3756,29 @@ class spica_NSS:
 
     def dbquery_tap(self):
         """
-        This returns the SPICA-DB queried via TAP protocol. A first selection of
-        stars can be made, e.g. in declination
+        Query the SPICA catalog through the TAP service.
 
-        Parameters
-        ----------
-        None.
+        The full content of the SPICA database table defined by
+        ``self.catalogSpica`` is retrieved using an ADQL query.
+        Masked values in selected columns are converted to standard
+        Python numerical values to simplify subsequent filtering and
+        priority calculations.
 
-        Returns
-        -------
-        data : Table
-            The SPICA_DB as data variable.
+        Returns:
+            astropy.table.Table: SPICA catalog containing science targets and associated survey metadata.
         """
-        # tapServerUrl = 'http://tap-preprod.jmmc.fr/vollt/tap/' # url subject to change
+
         print("tapServerUrl:", tapServerUrl)
 
         # Query all spica-db catalog content
-        # catalog = 'spica_2023_06_07' # let use a snapshot on a specific date for test
         adqlQuery = (
             "SELECT * FROM " + self.catalogSpica
-        )  # + " WHERE dec > 20 AND dec < 40" # " + " ORDER BY progname #" #+ " WHERE ra > " + str(ra_sun_set) + " AND ra < " + str(ra_sun_rise)
-
+        )
         service = vo.dal.TAPService(tapServerUrl)
         results = service.search(adqlQuery)
 
         # store new information into data variable
         data = results.to_table()
-
-        # Sort data in ascending RA
-        # data = data[np.argsort(data['ra'])]
-
-        # Select only stars with a completion_rate < 1
-        # data = data[data['completion_rate'] < 1]
-
-        # Remove stars without magnitude information
-        # data = data[data['vmag'].mask == False]
 
         # Correct the masked values which can befound in S03 for the completion_rate and the priority_pi
         for i in range(len(data["completion_rate"])):
@@ -4097,21 +3794,14 @@ class spica_NSS:
         return data
 
     def calquery_tap(self):
+        """Query the SPICA primary calibrator catalog through the TAP service.
+
+        Fetches the full content of the ``spica_calprim`` table.  An initial
+        declination pre-selection can be applied within the query if needed.
+
+        Returns:
+            astropy.table.Table: Primary calibrator catalog as returned by the TAP service.
         """
-        This returns the SPICA-DB calibrators queried via TAP protocol. A first selection of
-        stars can be made, e.g. in declination
-
-        Parameters
-        ----------
-        None.
-
-        Returns
-        -------
-        data : Table
-            The SPICA_DB as data variable.
-        """
-        # tapServerUrl = 'http://tap.jmmc.fr/vollt/tap/' # url subject to change
-
         # query all calprim content
         calprim = "spica_calprim"
         calAdqlQuery = "SELECT * FROM " + calprim
@@ -4125,22 +3815,16 @@ class spica_NSS:
         return calibrators
 
     def observable_domain(self):
-        """
-        This returns the observable RA domain for a given observatory.
+        """Compute the observable RA domain for CHARA on the selected night.
 
-        Parameters
-        ----------
-        dateobs : Class
-            The date of the observations.
-        observer : Class
-            The observer's location
+        Derives the local sidereal time at sunset and sunrise (both referred
+        to the CHARA site) and converts them to right-ascension values in
+        degrees, defining the RA window within which targets are accessible.
 
-        Returns
-        -------
-        alpha_sun_set : Float
-            The RA (hour angle or alpha) of the sun set.
-        alpha_sun_rise : Float
-            The RA (hour angle or alpha) of the sun rise.
+        Returns:
+            tuple: Pair ``(alpha_sun_set, alpha_sun_rise)`` where both values
+                are floats giving the RA (in degrees) of sunset and sunrise
+                respectively.
         """
         # Get the times of the sunset and the sunrise minus/plus one hour (15 degrees)
         sun_set = self.chara.sun_set_time(
@@ -4178,7 +3862,6 @@ class spica_NSS:
 
     def fixColumnTypes(self, ts):
         """Fixes some datatypes (object -> str) of given table list inplace so we can vstack cal and sci tables."""
-        # fix ucds on client side (this does not modify parent's table column's meta)
         ucd4col = {
             # consider target_main_id column as target id (instead of spicadb_id)
             "target_main_id": "meta.id;meta.main",
@@ -4239,7 +3922,6 @@ class spica_NSS:
         }
         # print("FIXME remove comments ucd change so we can display them in Aspro2 as soon as calibrator+desc is supported")
 
-        # priority-pi can then be used with free values
         strCols = ["priority_pi"]
 
         if not isinstance(ts, list):
@@ -4275,13 +3957,24 @@ class spica_NSS:
             "nss_type": "nss_type",
         },
     ):
-
         # We could imagine a mapping on top of ucd but because of UCD1+(spica_survey) vs UCD1(VizieR)
         # -> Use a manual mapping
-        """Return a new table. Each columns given by colnames keys are copied and renamed to associated values for output table.
-        Default colNames values are selected so we can use a calibrator table from spica-calprim or Vizier JSDC2.
         """
+        Convert catalog-specific column names into a standardized
+        SPICA/Aspro naming scheme.
 
+        This method allows catalogs originating from different
+        sources (SPICA database, JSDC, Vizier, calibrator catalogs)
+        to be merged and exported using a consistent set of column
+        names.
+
+        Args:
+            input (astropy.table.Table): Input catalog.
+            colNames (dict, optional): Mapping between source column names and standardized output names.
+
+        Returns:
+            astropy.table.Table: Catalog with normalized column names and corrected column types.
+        """
         output = Table()
         for c in input.colnames:
             if c in colNames:
@@ -4296,17 +3989,19 @@ class spica_NSS:
 
     def samp_votable(self, targets, calibrators1=None, calibrators2=None):
         """
-        This sends the filtered list of stars from SPICA-DB to ASPRO2 as a VOtable
-        through samp protocol.
+        Export selected targets and calibrators to Aspro2.
 
-        Parameters
-        ----------
-        targets : Table
-            The filtered SPICA-DB as a data variable.
+        Science targets, primary calibrators and secondary
+        calibrators are converted into a VOtable and transmitted
+        through the SAMP protocol to a running Aspro2 instance.
 
-        Returns
-        -------
-        None.
+        Args:
+            targets (astropy.table.Table): Selected science targets.
+            calibrators1 (astropy.table.Table, optional): Primary calibrators.
+            calibrators2 (astropy.table.Table, optional): Secondary calibrators.
+
+        Returns:
+            None
         """
 
         self.client = SAMPIntegratedClient(name="SPICA-NSS")
@@ -4329,27 +4024,13 @@ class spica_NSS:
                 calPrims = self.normalizeColumnNames(calibrators1)
                 calPrims.add_column(
                     "calprim", name=COLNAME_GRP
-                )  # set main grouptargets2aspro
-
-                """
-                # create a fake star that will gather all cal prim to avoid orphan calibrators
-                FAKECALPRIMNAME="lesCALPRIM"
-                r = calPrims[0].as_void()
-                r["target_main_id"]=FAKECALPRIMNAME
-                r["ra"]=r["dec"]=0
-                r["ld_jsdc2"]=float("NaN") # TODO fix code so we do not compute a disk for this fake star
-                r["vmag"]=r["hmag"]=r["jmag"]=r["kmag"]=r["rmag"]=0
-                calPrims.insert_row(0,r)
-                """
+                )
 
                 # second table to declare some calibrators through Aspro's votable
                 calPrims4sci = Table()
                 calPrims4sci.add_column(
                     calPrims["target_main_id"], name="CALIBRATOR_NAME"
                 )
-                # calPrims4sci.add_column(FAKECALPRIMNAME, name="SCIENCE_TARGET_NAME")
-
-                # calibrators1["vmag"].meta["ucd"]='phot.mag;em.opt.V'
 
             # Add secondary calibrators if any
             if calibrators2:
@@ -4357,25 +4038,6 @@ class spica_NSS:
                 calSeconds.add_column("calsecond", name=COLNAME_GRP)  # set main group
 
                 # We should not have orphan calibrators since queryJsdc2 perform the association
-                """
-                """
-                """
-                # Prepare associations
-                FAKECALSECONDNAME="lesCALSECOND"
-                # associate all cal to a fake star
-                calSeconds4sci=Table()
-                calSeconds4sci.add_column(calSeconds["target_main_id"], name="CALIBRATOR_NAME")
-                calSeconds4sci.add_column(FAKECALSECONDNAME, name="SCIENCE_TARGET_NAME")
-
-
-                # and create this fake star that will gather all cal secondary
-                r = calSeconds[0].as_void()
-                r["target_main_id"]=FAKECALSECONDNAME
-                r["ra"]=r["dec"]=0
-                r["ld_jsdc2"]=float("NaN") # TODO fix code so we do not compute a disk for this fake star
-                r["vmag"]=r["hmag"]=r["jmag"]=r["kmag"]=r["rmag"]=0
-                calSeconds.insert_row(0,r)
-                """
 
             if COLNAME_GRP in targets.colnames:
                 targets.remove_column(COLNAME_GRP)
@@ -4551,14 +4213,14 @@ class spica_NSS:
                 font=self.myFont,
             ).grid(
                 column=0, row=0, padx=5, pady=4
-            )  # ,columnspan=0)
+            )
             Label(
                 self.topSAMP,
                 text=f"- {len(self.spica_catg[self.indexList_Targets])} science targets,\n",
                 font=self.myFont,
             ).grid(column=0, row=1, sticky="W", padx=10)
 
-            if self.indexList_CalPrim:  # self.calprim_catg:
+            if self.indexList_CalPrim:
                 Label(
                     self.topSAMP,
                     text=f"- {len(self.calprim_catg[self.indexList_CalPrim])} primary calibrators,\n",
@@ -4623,8 +4285,7 @@ class spica_NSS:
                     command=self.importClients,
                 ).grid(
                     column=0, row=6
-                )  # self.import2aspro).grid(column=0,row=9)
-                # Button(frame, text='No', font=self.myFont, fg='white', bg='red', cursor='hand1', command=self.topSAMP.destroy).grid(column=1,row=6)
+                )
                 Button(
                     frame,
                     text="No",
@@ -4683,20 +4344,23 @@ class spica_NSS:
             print("[INFO] Unable to find a running SAMP Hub. Please launch Aspro2.")
             messagebox.showinfo(title="Info", message="Please launch Aspro2 first.")
 
-        # print(datetime.now().strftime('%H:%M:%S >>> '), f"{tmpname} sent by samp")
-
     def cancelClickClients(self):
         self.topSAMP.destroy()
         self.client.disconnect()
 
     def importClients(self):
         """
+        Send the prepared VOtable to the selected Aspro2 SAMP client(s).
 
+        If exactly one Aspro2 client is connected the VOtable SAMP message
+        is sent directly to that client.  If several clients are open, the
+        message is sent only to the subset chosen by the user via the
+        checkbox selection in ``self.SelectedClient``.  After broadcasting,
+        the SAMP confirmation popup is closed and the client disconnects from
+        the SAMP hub.
 
-        Returns
-        -------
-        None.
-
+        Returns:
+            None
         """
         if len(self.connectedAsproClients) == 1:
             self.client.notify(self.connectedAsproClients[0], self.message)
@@ -4711,17 +4375,12 @@ class spica_NSS:
         """
         Updates the completion rate based on the SPICA mode.
 
-        Parameters
-        ----------
-        completion_rate : float
-            The initial completion rate value.
-        spica_mode : str
-            The SPICA mode which determines how the completion rate is adjusted.
+        Args:
+            completion_rate (float): The initial completion rate value.
+            spica_mode (str): The SPICA mode which determines how the completion rate is adjusted.
 
-        Returns
-        -------
-        float
-            The updated completion rate after adjustments based on the SPICA mode.
+        Returns:
+            float: The updated completion rate after adjustments based on the SPICA mode.
         """
         try:
             # Handle masked completion rate values
@@ -4747,23 +4406,22 @@ class spica_NSS:
 
     def update_flag_completion(self, completion_rate, spica_mode):
         """
+        Convert a completion rate into a survey completion flag.
 
-        Parameters
-        ----------
-        completion_rate : TYPE
-            DESCRIPTION.
-        spica_mode : TYPE
-            DESCRIPTION.
+        The returned flag represents the observing status of a target
+        and depends on both the completion rate and the SPICA
+        observing mode.
 
-        Returns
-        -------
-        None.
+        Args:
+            completion_rate (float): Fraction of observations completed for the target.
+            spica_mode (str): SPICA observing mode (DIA, DLD, IMA, TMP or SPI).
 
+        Returns:
+            int: Completion flag where 1 = sufficiently completed,
+                2 = partially completed, 3 = not completed or special mode.
         """
-        flag = []
-        # if ma.is_masked(completion_rate):
-        #    completion_rate = float(ma.getdata(completion_rate))
 
+        flag = []
         if (spica_mode == "DIA") & (completion_rate > 0):
             flag = 1
 
@@ -4795,19 +4453,18 @@ class spica_NSS:
 
     def update_priority_final(self, flag_completion, priority_pi):
         """
+        Compute the final scheduling priority.
 
+        The final priority combines the scientific priority assigned
+        by the principal investigator with the current completion
+        status of the target.
 
-        Parameters
-        ----------
-        flag_completion : TYPE
-            DESCRIPTION.
-        priority_pi : TYPE
-            DESCRIPTION.
+        Args:
+            flag_completion (int): Completion category returned by ``update_flag_completion``.
+            priority_pi (int): Priority assigned by the principal investigator.
 
-        Returns
-        -------
-        None.
-
+        Returns:
+            int: Final priority rank used by the SPICA-NSS target selection process.
         """
 
         print(flag_completion, priority_pi)
@@ -4831,22 +4488,21 @@ class spica_NSS:
 
         return priority_final
 
-    # TODO
     def update_priority_final2(self, flag_completion, priority_pi, progname2):
         """
+        Compute the final scheduling priority for targets shared between programmes.
 
+        An extended priority formula that accounts for membership in a second
+        programme (``progname2``).  The returned value ranges from 1 (highest
+        urgency) to 4 (lowest urgency).
 
-        Parameters
-        ----------
-        flag_completion : TYPE
-            DESCRIPTION.
-        priority_pi : TYPE
-            DESCRIPTION.
+        Args:
+            flag_completion (int): Completion category as returned by :meth:`update_flag_completion`.
+            priority_pi (int): Priority assigned by the principal investigator (0 = high, 1 = low).
+            progname2 (str or bool): Secondary programme identifier; a truthy value indicates the target belongs to a second programme.
 
-        Returns
-        -------
-        None.
-
+        Returns:
+            int: Final priority rank (1–4).
         """
 
         priority_final = []
@@ -4873,24 +4529,18 @@ class spica_NSS:
 
     def add_toymodel(self, data):
         """
+        Attach a simple uniform-disk model to calibrator rows.
 
-        Parameters
-        ----------
-        data : TYPE
-            DESCRIPTION.
+        Creates (or replaces) a ``model`` column and sets each row's model
+        to an Aspro-compatible uniform-disk representation built from the
+        limb-darkened diameter stored in the ``ld_jsdc2`` column.  Rows
+        where ``ld_jsdc2`` is falsy are left with a ``None`` model.
 
-        Returns
-        -------
-        data : TYPE
-            DESCRIPTION.
+        Args:
+            data (astropy.table.Table): Calibrator table containing at least a ``ld_jsdc2`` column.
 
-        """
-        """
-        # quickshow of relevant content for us
-        if True:
-            help(Models.gaussian)
-            print(Models.gaussian('toto', fwhm=3))
-            print([f for f in dir(Models) if not f.startswith("_")])
+        Returns:
+            astropy.table.Table: The input table with the ``model`` column added or updated.
         """
         # Append dynamically a 'toy' model to our catalog
         # prepare new column
@@ -4910,25 +4560,17 @@ class spica_NSS:
 
     def add_targetmodel(self, data):
         """
+        Attach Aspro-compatible geometric models to targets.
 
+        Existing serialized models are converted into Aspro model
+        objects. If no model is available, a simple uniform-disk
+        model is generated using the target angular diameter.
 
-        Parameters
-        ----------
-        data : TYPE
-            DESCRIPTION.
+        Args:
+            data (astropy.table.Table): Table containing target properties and optional model definitions.
 
-        Returns
-        -------
-        data : TYPE
-            DESCRIPTION.
-
-        """
-        """
-        # quickshow of relevant content for us
-        if True:
-            help(Models.gaussian)
-            print(Models.gaussian('toto', fwhm=3))
-            print([f for f in dir(Models) if not f.startswith("_")])
+        Returns:
+            astropy.table.Table: Input table augmented with a ``model`` column suitable for export through SAMP to Aspro2.
         """
 
         # prepare new column if not present
@@ -4967,12 +4609,21 @@ class spica_NSS:
     # *** PRIMARY CALIBRATORS ***
     def query_calprim(self):
         """
+        Select primary calibrator candidates for the currently
+        selected science targets.
 
-        Returns
-        -------
-        None.
+        Candidate calibrators are extracted from the SPICA primary
+        calibrator catalog and filtered according to configurable
+        constraints in right ascension, declination and visual
+        magnitude relative to the science target sample.
 
+        Results are stored in ``self.calprim_catg`` and
+        ``self.indexList_CalPrim``.
+
+        Returns:
+            None
         """
+
         tableTargets = self.spica_catg[self.indexList_Targets]
         tableCalprim = None
 
@@ -5071,6 +4722,29 @@ class spica_NSS:
         self.plot_radec()
 
     def replacebyHDname(self, tableObjects):
+        """
+        Replace object names by their HD identifiers.
+
+        For each object in the input table, SIMBAD is queried for
+        alternative identifiers when the current name is not already
+        an HD designation. If an HD identifier is found, the object
+        name is replaced by the first matching HD entry returned by
+        SIMBAD.
+
+        Args:
+            tableObjects (astropy.table.Table): Input catalog containing object identifiers. The table must include either a ``target_main_id`` column, a ``name`` column, or a ``Name`` column.
+
+        Returns:
+            astropy.table.Table: Catalog with object names replaced by HD identifiers whenever available.
+
+        Note:
+            Objects already identified by an HD name are not queried.
+            If no HD identifier is found in SIMBAD, the original object
+            name is preserved.
+
+            The original column naming convention is restored before
+            returning the table.
+        """
         inspicadb = 0
         if "target_main_id" in tableObjects.colnames:
             inspicadb = 1
@@ -5079,7 +4753,6 @@ class spica_NSS:
             tableObjects.rename_column("name", "Name")
 
         # Loop over all star names
-
         for j, starname in enumerate(tableObjects["Name"]):
             objectnames = (
                 None  # Initialize objectnames to None at the start of each iteration
@@ -5260,20 +4933,6 @@ class spica_NSS:
         tableCalsec.rename_column("_DEJ2000", "dec")
         tableCalsec.rename_column("_RAJ2000", "ra")
 
-        """
-        if len(tableCalsec) == 0: #>= CALSEC_VIZIER_ROW_LIMIT:
-            self.CalsecOpened = True
-            self.topCalsec = Toplevel(self.root)
-            self.topCalsec.resizable(FALSE, FALSE)
-            Label(self.topCalsec, text= 'WARNING', font=self.myFont, bg='red', fg='white').grid(column=0,row=0,padx=5,pady=4)
-            Label(self.topCalsec, text= f'Too many secondary calibrators in selection ({CALSEC_VIZIER_ROW_LIMIT})', font=self.myFont).grid(column=0,row=1,padx=5,pady=4)
-            Label(self.topCalsec, text= 'Please, refine your selection.', font=self.myFont).grid(column=0,row=2,padx=5,pady=4)
-            frame = Frame(self.topCalsec)
-            frame.grid(pady=5)
-            Button(frame, text='Close', font=self.myFont, fg='white', bg='red', cursor='hand1', command=self.onCloseCalsec).grid(column=1,row=3)
-        else:
-        """
-
         # Filter secondary calibrators on RA between sunset and sunrise
         if self.ra_sunset < self.ra_sunrise:
             tableCalsec = tableCalsec[
@@ -5285,13 +4944,6 @@ class spica_NSS:
                 (tableCalsec["ra"] > self.ra_sunset)
                 | (tableCalsec["ra"] < self.ra_sunrise)
             ]
-
-            """
-            indCal1 = [(tableCalsec['ra'] > minRa) & (tableCalsec['ra'] < self.ra_sunrise)]
-            indCal2 = [(tableCalsec['ra'] > self.ra_sunset)]# & (tableCalsec['ra'] < maxRa)]
-            indCal = np.logical_or(indCal1, indCal2)
-        """
-        # tableCalsec = tableCalsec[np.where(indCal)[1][:]]
 
         # Calculate the visibility
         wavel = 0.75
@@ -5423,8 +5075,7 @@ class spica_NSS:
             print(
                 "[Warning] There are no secondary calibrators left after filtering in Relative Error and Visibility."
             )
-        # else:
-        #    print('[Warning] There are no secondary calibrators in initial Vizier query.')
+
         print("[INFO] ---")
         print("")
         self.plot_radec()
@@ -5454,7 +5105,6 @@ class spica_NSS:
         self.query_calsec()
 
     def entryMinVisSecCallback2(self, strMinVisSec):
-        # self.minvissec = float(strMinVisSec.get())
         self.query_calsec()
 
     def goCalSec(self):
@@ -5492,19 +5142,6 @@ class spica_NSS:
             ],
         )
 
-    """
-    def getSelectedTargets_with_AddTarget(self, indexAddTarget):
-        self.getSelectedTargets()
-        self.indexList_Targets = np.append(self.indexList_Targets, indexAddTarget)
-        pdb.set_trace()
-    """
-    # def on_closing(self):
-    #     if messagebox.askokcancel("Quit", "Do you want to quit?"):
-    #         self.tree_frameInfoTargets.destroy()
-    #         self.popupInfoTargets = False
-
-    # Class Variables
-    # date="2020-10-10" #date.today()
     CalsecOpened = False
     LogOpened = False
     popupInfoTargets = False
@@ -5514,9 +5151,7 @@ class spica_NSS:
 
     date = date.today()
     date = date.strftime("%Y-%m-%d")
-    # date = Time(date, scale='utc')
 
-    # nstmodeName = ['DIA', 'DLD', 'IMA', 'TMP', 'SPI']
     spica_catg = None
     index_AddTarget = None
 
@@ -5561,8 +5196,6 @@ class spica_NSS:
 
     strDecMean = 0.0
 
-
-oidbTapUrl = "http://tap.jmmc.fr/vollt/tap/"
 tapServerUrl = "http://tap.jmmc.fr/vollt/tap/"
 nssVersion = "v2025-09"
 
