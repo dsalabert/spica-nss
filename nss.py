@@ -831,6 +831,21 @@ class spica_NSS:
         self.root.mainloop()
 
     def open_popupAddTarget(self):
+        """Add an arbitrary science target to the current selection.
+
+        Prompts the user for a target name, resolves it through SIMBAD to
+        obtain sky coordinates, and then cross-matches against the SPICA
+        catalog.  If a unique match is found the target is added to
+        ``self.index_AddTarget`` and the plot is refreshed.  If multiple
+        matches are found a Treeview popup lets the user pick the desired
+        programme entry.  If the target is not in the observable window for
+        the selected date but exists in the full database, a warning is
+        shown.  An error dialog is raised when SIMBAD cannot resolve the
+        name.
+
+        Returns:
+            None
+        """
         # Check if the SPICA catalog has been queried
         if self.spica_catg is None:
             messagebox.showinfo(title="Info", message="Please query SPICA-DB first.")
@@ -1198,19 +1213,50 @@ class spica_NSS:
         )
 
     def closeframeInfoTargets(self):
+        """Close the target-info popup and reset its open flag.
+
+        Returns:
+            None
+        """
         self.tree_frameInfoTargets.destroy()
         self.popupInfoTargets = False
 
     def closeframeAddTarget(self):
+        """Close the add-target popup and reset its open flag.
+
+        Returns:
+            None
+        """
         self.tree_frameAddTarget.destroy()
         self.popupAddTarget = False
 
     # Define a function to clear all the items present in Treeview
     def clear_all(self, tree):
+        """Remove all rows from a Treeview widget.
+
+        Args:
+            tree (ttk.Treeview): The Treeview whose contents should be cleared.
+
+        Returns:
+            None
+        """
         for item in tree.get_children():
             tree.delete(item)
 
     def copy(self, event):
+        """Copy the selected Treeview rows to the system clipboard.
+
+        Copies column headers followed by the values of every selected row,
+        tab-separated, to the Tkinter clipboard so the content can be pasted
+        into external applications.  Bound to ``<Control-c>`` on the target
+        info Treeview.
+
+        Args:
+            event: The Tkinter key-press event that triggered this callback.
+
+        Returns:
+            None
+        """
         sel = self.my_treeInfoTargets.selection()  # get selected items
         self.root.clipboard_clear()  # clear clipboard
         # copy headers
@@ -1227,7 +1273,18 @@ class spica_NSS:
             self.root.clipboard_append("\t".join(values) + "\n")
 
     def insert_popupAddTarget(self):
-        # Create Striped Row Tags
+        """Populate the add-target Treeview with candidate fainter stars.
+
+        Fetches the subset of the SPICA catalog indexed by
+        ``self.indexList_AddTarget``, sorts it by V magnitude, and inserts
+        each record as a striped row into ``self.my_treeAddTarget``.  For
+        targets belonging to a second programme the programme name and final
+        priority columns show both values in parentheses.  Also binds
+        ``<Control-c>`` and ``<Double-1>`` events on the Treeview.
+
+        Returns:
+            None
+        """
         self.my_treeAddTarget.tag_configure("oddrow", background="white")
         self.my_treeAddTarget.tag_configure("evenrow", background="lightsalmon1")
 
@@ -1324,7 +1381,18 @@ class spica_NSS:
         self.my_treeAddTarget.bind("<Double-1>", self.OnDoubleClick)
 
     def insert_popupInfoTargets(self):
-        # Create Striped Row Tags
+        """Populate the target-info Treeview with the currently selected targets.
+
+        Fetches the subset of the SPICA catalog indexed by
+        ``self.indexList_Targets``, sorts it by V magnitude, and inserts each
+        record as a striped row into ``self.my_treeInfoTargets``.  For targets
+        belonging to a second programme the programme name and final priority
+        columns show both values in parentheses.  Also binds ``<Control-c>``
+        and ``<Double-1>`` events on the Treeview.
+
+        Returns:
+            None
+        """
         self.my_treeInfoTargets.tag_configure("oddrow", background="white")
         self.my_treeInfoTargets.tag_configure("evenrow", background="lightblue")
 
@@ -1421,6 +1489,20 @@ class spica_NSS:
         self.my_treeInfoTargets.bind("<Double-1>", self.OnDoubleClick)
 
     def OnDoubleClick(self, event):
+        """Handle a double-click on a row in the add-target Treeview.
+
+        Retrieves the SPICA-DB ID, main identifier and programme name of the
+        focused row and asks the user for confirmation.  If confirmed, the
+        corresponding catalog index is appended to ``self.index_AddTarget``,
+        the target selection and sky plot are refreshed, and the add-target
+        popup is closed.
+
+        Args:
+            event: The Tkinter double-click event that triggered this callback.
+
+        Returns:
+            None
+        """
         selected_record = self.my_treeAddTarget.item(self.my_treeAddTarget.focus())
         selected_spicadbid = selected_record["values"][0]
         selected_targetmainid = selected_record["values"][1]
@@ -1451,12 +1533,39 @@ class spica_NSS:
         self.tree_frameAddTarget.destroy()
 
     def retag(self, theTreeToSort):
+        """Reapply alternating row tags after a Treeview sort.
+
+        Iterates over all top-level items of the given Treeview and
+        alternately assigns the ``"oddrow"`` and ``"evenrow"`` tags so that
+        the striped background pattern is preserved after rows are reordered.
+
+        Args:
+            theTreeToSort (ttk.Treeview): The Treeview widget to retag.
+
+        Returns:
+            None
+        """
         tag = "oddrow"
         for iid in theTreeToSort.get_children(""):
             tag = "oddrow" if tag == "evenrow" else "evenrow"
             theTreeToSort.item(iid, tags=(tag,))
 
     def treeview_sort_column(self, tv, col, reverse):
+        """Sort a Treeview by the given column and toggle sort direction.
+
+        Extracts the values of ``col`` for all rows, sorts them (converting
+        to ``int`` for the ``"Count"`` column), rearranges the rows
+        accordingly, reapplies striped row tags via :meth:`retag`, and
+        reconfigures the column heading so the next click reverses the sort.
+
+        Args:
+            tv (ttk.Treeview): The Treeview widget to sort.
+            col (str): The column identifier to sort by.
+            reverse (bool): If ``True``, sort in descending order.
+
+        Returns:
+            None
+        """
         if col == "Count":
             items = [(int(tv.set(k, col)), k) for k in tv.get_children("")]
         else:
@@ -2687,6 +2796,15 @@ class spica_NSS:
             j.select()
 
     def deselect_allProgName(self):
+        """Reset the programme-name filter by re-running the catalog query.
+
+        Delegates to :meth:`onQuery`, which reloads the catalog from the
+        cached data and resets all filters including programme names to their
+        default (all selected) state.
+
+        Returns:
+            None
+        """
         self.onQuery()
 
     def plotSelectedInstMode(self):
@@ -2875,11 +2993,35 @@ class spica_NSS:
         buttonCloseInstMode.grid(column=1, row=iInstMode + 2)
 
     def entryDateCallback(self, strDate):
+        """Handle a change in the observation date entry.
+
+        Updates ``self.date``, refreshes the date label, and triggers a full
+        catalog re-query via :meth:`onQuery`.
+
+        Args:
+            strDate (tk.Entry): The entry widget holding the new date string.
+
+        Returns:
+            None
+        """
         self.date = strDate.get()
         self.labelValDate.config(text=self.date)
         self.onQuery()
 
     def entryDecMinCallback(self, strDecMin):
+        """Handle a change in the minimum declination filter entry.
+
+        Updates ``self.decmin`` (clamped to −30°), rebuilds
+        ``self.indexDecMin``, and refreshes the target selection and plot.
+        Any open target info or add-target popups are also updated.
+
+        Args:
+            strDecMin (tk.Entry): Entry widget holding the new minimum
+                declination value in degrees.
+
+        Returns:
+            None
+        """
         self.indexDecMin = []
         self.decmin = float(strDecMin.get())
         if self.decmin <= -30.0:
@@ -2911,6 +3053,19 @@ class spica_NSS:
             )
 
     def entryDecMaxCallback(self, strDecMax):
+        """Handle a change in the maximum declination filter entry.
+
+        Updates ``self.decmax`` (clamped to 90°), rebuilds
+        ``self.indexDecMax``, and refreshes the target selection and plot.
+        Any open target info or add-target popups are also updated.
+
+        Args:
+            strDecMax (tk.Entry): Entry widget holding the new maximum
+                declination value in degrees.
+
+        Returns:
+            None
+        """
         self.indexDecMax = []
         self.decmax = float(strDecMax.get())
         if self.decmax >= 90.0:
@@ -2942,6 +3097,19 @@ class spica_NSS:
             )
 
     def entryVmagMinCallback(self, strVmagMin):
+        """Handle a change in the minimum V-magnitude filter entry.
+
+        Updates ``self.vmagmin``, rebuilds ``self.indexVmagMin``, and
+        refreshes the target selection and plot.  Any open target info or
+        add-target popups are also updated.
+
+        Args:
+            strVmagMin (tk.Entry): Entry widget holding the new minimum
+                V magnitude.
+
+        Returns:
+            None
+        """
         self.indexVmagMin = []
         self.vmagmin = float(strVmagMin.get())
         self.indexVmagMin = list(
@@ -2971,6 +3139,20 @@ class spica_NSS:
             )
 
     def entryVmagMaxCallback(self, strVmagMax):
+        """Handle a change in the maximum V-magnitude filter entry.
+
+        Updates ``self.vmagmax``, rebuilds ``self.indexVmagMax`` for the
+        main selection and ``self.indexVmagToAddTarget`` for the one-magnitude
+        fainter add-target pool, then refreshes the target selection and plot.
+        Any open target info or add-target popups are also updated.
+
+        Args:
+            strVmagMax (tk.Entry): Entry widget holding the new maximum
+                V magnitude.
+
+        Returns:
+            None
+        """
         self.indexVmagMax = []
         self.indexVmagToAddTarget = []
         self.vmagmax = float(strVmagMax.get())
@@ -3008,6 +3190,17 @@ class spica_NSS:
             )
 
     def onLog(self):
+        """Open the survey statistics (LOG) popup.
+
+        Queries the full SPICA database, computes the completion percentage
+        for each programme name and each instrumental mode, and displays the
+        results as two stacked bar charts (programme completion and mode
+        completion) in a ``Toplevel`` window with annotated bar segments.
+        If the LOG window is already open it is first closed and rebuilt.
+
+        Returns:
+            None
+        """
         if self.LogOpened:
             self.onCloseLog()
         self.LogOpened = True
@@ -3127,16 +3320,34 @@ class spica_NSS:
         buttonCloseProgName.grid(column=0, row=2)
 
     def onQuit(self):
+        """Quit the SPICA-NSS application after user confirmation.
+
+        Shows a yes/no dialog; if confirmed, destroys the main Tkinter window,
+        closes all matplotlib figures, and prints a farewell message.
+
+        Returns:
+            None
+        """
         if messagebox.askyesno("Exit", "Do you want to quit the SPICA-NSS Tool?"):
             self.root.destroy()
             plt.close("all")
             print("\nBye!")
 
     def onCloseCalsec(self):
+        """Close the secondary-calibrator warning popup and reset its flag.
+
+        Returns:
+            None
+        """
         self.topCalsec.destroy()
         self.CalsecOpened = False
 
     def onCloseLog(self):
+        """Close the LOG statistics popup and reset its flag.
+
+        Returns:
+            None
+        """
         self.topLog.destroy()
         self.LogOpened = False
 
@@ -3160,6 +3371,17 @@ class spica_NSS:
         self.import2aspro()
 
     def import2aspro(self):
+        """Prepare and dispatch the current selection to Aspro2.
+
+        Sorts the selected science targets by meridian transit time at CHARA,
+        gathers any primary and secondary calibrators, attaches angular
+        diameter models (:meth:`addDiamModel`) and NSS type labels
+        (:meth:`addNssType`), then calls :meth:`samp_votable` to broadcast
+        the assembled VOtable to a running Aspro2 instance over SAMP.
+
+        Returns:
+            None
+        """
         targets2aspro = self.spica_catg[self.indexList_Targets]
         # Replace by mainID by HD name if needed
         targets2aspro = self.replacebyHDname(targets2aspro)
@@ -3542,6 +3764,14 @@ class spica_NSS:
         self.plot_radec()
 
     def onFilters(self):
+        """Re-apply all active filters and refresh the sky plot.
+
+        Delegates to :meth:`onQuery` to recompute the filtered target list,
+        then calls :meth:`plot_radec` to update the display.
+
+        Returns:
+            None
+        """
         self.onQuery()
         self.plot_radec()
 
@@ -4345,6 +4575,14 @@ class spica_NSS:
             messagebox.showinfo(title="Info", message="Please launch Aspro2 first.")
 
     def cancelClickClients(self):
+        """Cancel the pending Aspro2 SAMP export.
+
+        Closes the SAMP confirmation popup and disconnects the SAMP client
+        without sending any message.
+
+        Returns:
+            None
+        """
         self.topSAMP.destroy()
         self.client.disconnect()
 
@@ -4786,21 +5024,71 @@ class spica_NSS:
         return tableObjects
 
     def entryRaRangePrimCallback(self, strRaRangePrim):
+        """Handle a change in the primary-calibrator RA search range entry.
+
+        Updates ``self.rarangeprim`` and triggers :meth:`query_calprim`.
+
+        Args:
+            strRaRangePrim (tk.Entry): Entry widget holding the new RA range
+                in arcminutes.
+
+        Returns:
+            None
+        """
         self.rarangeprim = float(strRaRangePrim.get())
         self.query_calprim()
 
     def entryDecRangePrimCallback(self, strDecRangePrim):
+        """Handle a change in the primary-calibrator Dec search range entry.
+
+        Updates ``self.decrangeprim`` and triggers :meth:`query_calprim`.
+
+        Args:
+            strDecRangePrim (tk.Entry): Entry widget holding the new
+                declination range in degrees.
+
+        Returns:
+            None
+        """
         self.decrangeprim = float(strDecRangePrim.get())
         self.query_calprim()
 
     def entryVmagRangePrimCallback(self, strVmagRangePrim):
+        """Handle a change in the primary-calibrator V-magnitude range entry.
+
+        Updates ``self.vmagrangeprim`` and triggers :meth:`query_calprim`.
+
+        Args:
+            strVmagRangePrim (tk.Entry): Entry widget holding the new
+                V-magnitude search range (±).
+
+        Returns:
+            None
+        """
         self.vmagrangeprim = float(strVmagRangePrim.get())
         self.query_calprim()
 
     def goCalPrim(self):
+        """Manually trigger the primary-calibrator query.
+
+        Delegates directly to :meth:`query_calprim` using the current search
+        parameter values.
+
+        Returns:
+            None
+        """
         self.query_calprim()
 
     def delCalPrim(self):
+        """Remove the current primary-calibrator selection and refresh the plot.
+
+        Clears ``self.calprim_catg`` and ``self.indexList_CalPrim``, then
+        calls :meth:`plot_radec` to remove calibrator markers from the sky
+        distribution plot.
+
+        Returns:
+            None
+        """
         print("[INFO] Delete primary calibrators")
         del self.indexList_CalPrim
         self.calprim_catg = None
@@ -4808,6 +5096,15 @@ class spica_NSS:
         self.plot_radec()
 
     def delCalSec(self):
+        """Remove the current secondary-calibrator selection and refresh the plot.
+
+        Clears ``self.calsec_catg`` and ``self.indexList_CalSec``, then
+        calls :meth:`plot_radec` to remove secondary calibrator markers from
+        the sky distribution plot.
+
+        Returns:
+            None
+        """
         print("[INFO] Delete secondary calibrators")
         del self.indexList_CalSec
         self.calsec_catg = None
@@ -4815,6 +5112,19 @@ class spica_NSS:
         self.plot_radec()
 
     def check4BeStars(self, tableObjects):
+        """Remove Be stars from a calibrator table.
+
+        Queries SIMBAD for the object type of each entry and removes any
+        rows classified as ``"Be*"``, which are unsuitable calibrators due to
+        their variable circumstellar emission.
+
+        Args:
+            tableObjects (astropy.table.Table): Calibrator table containing
+                a ``Name`` column.
+
+        Returns:
+            astropy.table.Table: Input table with Be-star rows removed.
+        """
         rowsBestars = []
         for j, starname in enumerate(tableObjects["Name"]):
             result_table = Simbad.query_object(starname)
@@ -4833,6 +5143,20 @@ class spica_NSS:
         return tableObjects
 
     def check4BadCal(self, tableObjects):
+        """Remove known bad calibrators from a calibrator table.
+
+        Queries the ``badcal`` table from the JMMC TAP service and
+        cross-matches it against the input table using a 5 arcsec tolerance.
+        Any matching rows are removed from the calibrator list.
+
+        Args:
+            tableObjects (astropy.table.Table): Calibrator table containing
+                ``ra`` and ``dec`` columns in degrees.
+
+        Returns:
+            astropy.table.Table: Input table with known bad calibrators
+                removed.
+        """
         rowsBadcal = []
         adqlQuery = "SELECT * FROM badcal"
 
@@ -4867,6 +5191,27 @@ class spica_NSS:
 
     # *** SECONDARY CALIBRATORS ***
     def query_calsec(self):
+        """Select secondary calibrator candidates for the current target selection.
+
+        Queries the JSDC2 catalog (Vizier ``II/346/jsdc_v2``) for stars
+        within the configurable RA, Dec and V-magnitude windows centred on
+        the median position of the selected science targets.  Candidates are
+        further filtered by:
+
+        - Observable RA window (between CHARA sunset and sunrise).
+        - LDD chi² quality criterion (``self.lddchisec``).
+        - Diameter relative error (``self.relerrorsec``).
+        - Minimum squared visibility at ``self.maxbaseline`` (``self.minvissec``).
+
+        Duplicates already present in the science-target list or among the
+        primary calibrators are removed by sky cross-match.  If more than 50
+        candidates survive, a warning popup is shown.  Otherwise the table is
+        screened for Be stars and known bad calibrators before being stored
+        in ``self.calsec_catg`` and ``self.indexList_CalSec``.
+
+        Returns:
+            None
+        """
         if self.CalsecOpened:
             self.onCloseCalsec()
 
@@ -5081,36 +5426,135 @@ class spica_NSS:
         self.plot_radec()
 
     def entryRaRangeSecCallback(self, strRaRangeSec):
+        """Handle a change in the secondary-calibrator RA search range entry.
+
+        Updates ``self.rarangesec`` and triggers :meth:`query_calsec`.
+
+        Args:
+            strRaRangeSec (tk.Entry): Entry widget holding the new RA range
+                in arcminutes.
+
+        Returns:
+            None
+        """
         self.rarangesec = float(strRaRangeSec.get())
         self.query_calsec()
 
     def entryDecRangeSecCallback(self, strDecRangeSec):
+        """Handle a change in the secondary-calibrator Dec search range entry.
+
+        Updates ``self.decrangesec`` and triggers :meth:`query_calsec`.
+
+        Args:
+            strDecRangeSec (tk.Entry): Entry widget holding the new
+                declination range in degrees.
+
+        Returns:
+            None
+        """
         self.decrangesec = float(strDecRangeSec.get())
         self.query_calsec()
 
     def entryVmagRangeSecCallback(self, strVmagRangeSec):
+        """Handle a change in the secondary-calibrator V-magnitude range entry.
+
+        Updates ``self.vmagrangesec`` and triggers :meth:`query_calsec`.
+
+        Args:
+            strVmagRangeSec (tk.Entry): Entry widget holding the new
+                V-magnitude search range (±).
+
+        Returns:
+            None
+        """
         self.vmagrangesec = float(strVmagRangeSec.get())
         self.query_calsec()
 
     def entryLDDChiSecCallback(self, strLDDChiSec):
+        """Handle a change in the secondary-calibrator LDD chi² threshold entry.
+
+        Updates ``self.lddchisec`` and triggers :meth:`query_calsec`.
+
+        Args:
+            strLDDChiSec (tk.Entry): Entry widget holding the new maximum
+                LDD fit chi² value.
+
+        Returns:
+            None
+        """
         self.lddchisec = float(strLDDChiSec.get())
         self.query_calsec()
 
     def entryRelErrorSecCallback(self, strRelErrorSec):
+        """Handle a change in the secondary-calibrator diameter relative-error entry.
+
+        Updates ``self.relerrorsec`` and triggers :meth:`query_calsec`.
+
+        Args:
+            strRelErrorSec (tk.Entry): Entry widget holding the new maximum
+                relative diameter error in percent.
+
+        Returns:
+            None
+        """
         self.relerrorsec = float(strRelErrorSec.get())
         self.query_calsec()
 
     def entryMinVisSecCallback(self, strMinVisSec):
+        """Handle a change in the secondary-calibrator minimum visibility entry.
+
+        Updates ``self.minvissec`` and triggers :meth:`query_calsec`.
+
+        Args:
+            strMinVisSec (tk.Entry): Entry widget holding the new minimum
+                squared visibility threshold.
+
+        Returns:
+            None
+        """
         self.minvissec = float(strMinVisSec.get())
         self.query_calsec()
 
     def entryMinVisSecCallback2(self, strMinVisSec):
+        """Alternative handler for the minimum-visibility entry that skips the value update.
+
+        Triggers :meth:`query_calsec` without modifying ``self.minvissec``,
+        used when the visibility threshold is updated through a separate
+        control (e.g. the max-baseline spinbox) rather than the text entry.
+
+        Args:
+            strMinVisSec (tk.Entry): The minimum-visibility entry widget
+                (value is not read).
+
+        Returns:
+            None
+        """
         self.query_calsec()
 
     def goCalSec(self):
+        """Manually trigger the secondary-calibrator query.
+
+        Delegates directly to :meth:`query_calsec` using the current search
+        parameter values.
+
+        Returns:
+            None
+        """
         self.query_calsec()
 
     def getSelectedTargets(self):
+        """Compute ``self.indexList_Targets`` from the active filter indices.
+
+        Takes the intersection of all active filter index arrays
+        (programme name, instrumental mode, final priority, Dec min/max,
+        Vmag min/max) and stores the result in ``self.indexList_Targets``.
+        Any manually added target index (``self.index_AddTarget``) is
+        appended afterwards so it is always included regardless of the active
+        filters.
+
+        Returns:
+            None
+        """
         self.indexList_Targets = reduce(
             np.intersect1d,
             [
@@ -5129,6 +5573,17 @@ class spica_NSS:
             )
 
     def getAddTarget(self):
+        """Compute ``self.indexList_AddTarget`` for the fainter-star pool.
+
+        Takes the intersection of the programme-name, instrumental-mode,
+        final-priority, Dec min/max and Vmag-min filter indices together with
+        ``self.indexVmagToAddTarget`` (targets one magnitude fainter than the
+        current Vmag maximum) to build the list of candidates shown in the
+        add-target popup.
+
+        Returns:
+            None
+        """
         self.indexList_AddTarget = reduce(
             np.intersect1d,
             [
