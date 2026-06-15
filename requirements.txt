@@ -1,0 +1,9 @@
+a2p2==0.7.8
+astroplan==0.10.1
+astropy==6.1.7
+astroquery==0.4.10
+matplotlib==3.11.0
+numpy==2.4.6
+pyvo==1.7
+scipy==1.17.1
+tkmacosx==1.0.5
